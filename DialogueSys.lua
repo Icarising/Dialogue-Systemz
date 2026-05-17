@@ -27,7 +27,7 @@ local Events = ReplicatedStorage:WaitForChild("Events")
 local Remotes = Events:WaitForChild("RemoteEvents")
 local QuestRemote = Remotes:WaitForChild("Quest")
 
---// constants
+--// CONSTANTS OGGMGMGGM
 
 local CAMERA_OFFSET = Vector3.new(5, 4, 0)
 local MAX_DISTANCE = 25
@@ -38,7 +38,7 @@ local CHOICE_TWEEN = TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirec
 local BASIC_STYLE = "<AnimateStyle=Fade>"
 local BASIC_FREQUENCY = "<AnimateStepFrequency=2>"
 
---// states
+--// STATES ( VERY IMPORTANT AND TUFF STATES OMG)
 
 local STATES = {
     IDLE = "IDLE",
@@ -48,9 +48,8 @@ local STATES = {
     CLOSED = "CLOSED"
 }
 
---// sound pool
---// avoids constant sound instance creation during typewriter effect
---// this is so we can iterate through like 10 sounds over and over instead of making a new one each time which is a little bit more effecient and saves a bit of memory
+--// sound pool and class
+--// this is so we can iterate through like 10 sounds over and over instead of making a new one each time 
 
 --// class type definition
 
@@ -136,7 +135,7 @@ local function disconnectConnections(tbl) --// remove connections form conncetio
     table.clear(tbl)
 end
 
---// constructor
+--// constructor function
 
 function Dialogue.new(player: Player, guiParent: PlayerGui, npc: Model) : DialogueClass
     --// sets up the dialogue class and all its different variables, like what state it is in, current speaker, npc and player, etc
@@ -194,13 +193,13 @@ function Dialogue:_createDepthEffect()
     self.DepthEffect = dof
 end
 --// camera lock-on system
---// overrides default Roblox camera to create a controlled cinematic dialogue view
+--// overrides default Roblox camera to create a controlled cinematic dialogue view where player is focused on npc
 
 function Dialogue:_setupCamera()
 
     local camera = workspace.CurrentCamera
 
-    --// safety checks ensure we only run camera logic when both entities exist
+    --//  we only run camera logic when both are valid
     if not self.NPC or not self.Character then return end
 
     local npcRoot = self.NPC.PrimaryPart
@@ -229,11 +228,9 @@ function Dialogue:_setupCamera()
             npcRoot.Position.Z - charRoot.Position.Z
         ).Unit
 
-        --// offset pushes camera behind player relative to NPC direction
-        --// creates over-the-shoulder cinematic framing instead of static view
+        --// offset pushes camera behind player depending on where npc is
+        --// this is for an over the shoulder typa view
         local offset = (-flatDirection * 6) + CAMERA_OFFSET
-
-        --// final camera position based on player position + offset
         local cameraPosition = charRoot.Position + offset
 
         --// lookAt ensures camera always faces slightly above NPC torso/head area
@@ -275,22 +272,18 @@ function Dialogue:_trackPlayer()
     local c = self.Character.PrimaryPart
     local n = self.NPC.PrimaryPart
     if not c or not n then return end
-
-    --// direction from npc to player (horizontal only for stable rotation)
+    
     local dir = (c.Position - n.Position).Unit
-
-    --// constructs look target so npc only rotates on Y axis
+    --// constructs look target so npc only rotates on Y axis and doesnt look up or down cuz thatd be bad
     local look = n.Position + Vector3.new(dir.X, 0, dir.Z)
 
-    --// prevents rotation conflicts while NPC is actively walking
+    --// cant face player while walking
     if not self.Walking then
         n.CFrame = CFrame.lookAt(n.Position, look)
     end
 end
 
 --// distance check loop
-
---// distance monitoring system
 --// continuously checks player-NPC distance to automatically close dialogue when out of range
 
 function Dialogue:_startDistanceCheck()
@@ -299,7 +292,7 @@ function Dialogue:_startDistanceCheck()
 
     connection = RunService.Heartbeat:Connect(function()
 
-        --// hard cleanup guard prevents lingering connections after dialogue destruction
+        --// make sure the class is still alive and the char and npc is 2
         if self.Destroyed then connection:Disconnect() return end
         if not self.Character or not self.NPC then return end
 
@@ -307,11 +300,9 @@ function Dialogue:_startDistanceCheck()
         local n = self.NPC.PrimaryPart
         if not c or not n then return end
 
-        --// keeps NPC facing player during active dialogue loop
-        --// tied into heartbeat so rotation stays frame-synced with engine updates
+        --// keeps NPC facing player during active dialogue loop wow
         self:_trackPlayer()
-
-        --// auto-close triggers when player exceeds interaction range
+        --// auto-close triggers when player  far away from npc
         if (c.Position - n.Position).Magnitude > MAX_DISTANCE then
             self:Hide()
         end
@@ -321,8 +312,7 @@ function Dialogue:_startDistanceCheck()
 end
 
 
---// UI entrance animation
---// tweening avoids instant UI pop-in and establishes dialogue focus
+--// UI pop up anim
 
 function Dialogue:Show()
 
@@ -335,24 +325,19 @@ end
 
 
 function Dialogue:SetSpeaker(name)
-
-    --// stores current speaker so UI can reflect correct name context per dialogue line
-    self.CurrentSpeaker = name
+    self.CurrentSpeaker = name --// whoever it is will appear when dialogue is called
 end
 
 
 --// typewriter audio system
---// runs independently of text rendering so audio stays consistent with animation timing
+--// runs independently of text animation so we can sync if player wants to click to skip text earier
 
 function Dialogue:_beginTypewrite(speed)
 
     self.TypeThread = task.spawn(function()
 
         while task.wait(0.04 / speed) do
-
-            --// stops immediately when dialogue state changes (prevents audio desync)
-            if self.State ~= STATES.TYPING then break end
-
+            if self.State ~= STATES.TYPING then break end --// if not typing just stsop
             GlobalSoundPool:Play(speed)
         end
     end)
@@ -360,9 +345,7 @@ end
 
 
 function Dialogue:_stopTypewrite()
-
-    --// cancels audio loop thread to prevent lingering sound spam
-    if self.TypeThread then
+    if self.TypeThread then --// stop the thread yes
         task.cancel(self.TypeThread)
         self.TypeThread = nil
     end
@@ -370,7 +353,7 @@ end
 
 
 --// input handler for advancing dialogue
---// supports PC, console, and mobile input methods
+--// supports all consoles
 
 function Dialogue:_waitForInput()
 
@@ -400,7 +383,7 @@ end
 
 
 --// npc path movement system
---// uses PathfindingService for obstacle-aware movement instead of direct MoveTo calls
+--// uses PathfindingService so npc can jump and walk around stuff if needed
 
 function Dialogue:moveNPCTo(pos)
 
@@ -441,8 +424,6 @@ function Dialogue:moveNPCTo(pos)
         end
 
         hum:MoveTo(wp.Position)
-
-        --// MoveToFinished wrapped with timeout to prevent infinite blocking on physics stalls
         local finished = false
 
         local conn
@@ -467,8 +448,7 @@ end
 
 
 --// choice system
---// choice generation system
---// dynamically builds UI buttons from input options and binds selection callbacks
+--// lets player make a choice WOW
 
 function Dialogue:_makeChoice(options)
 
@@ -476,8 +456,7 @@ function Dialogue:_makeChoice(options)
 
     local buttons, conns = {}, {}
 
-    --// bindable event acts as a temporary synchronization point
-    --// allows asynchronous UI input to resolve back into a single return value
+    --// bindable event that allows to see what button is pressed and stalls script till button is pressed
     local bind = Instance.new("BindableEvent")
 
     for i, v in ipairs(options) do
@@ -486,7 +465,7 @@ function Dialogue:_makeChoice(options)
         b.Parent = self.ChoicesHolder
         b.NameLabel.Text = v
 
-        --// starts invisible so tween can smoothly introduce UI elements
+        --// starts invisible so tween can smoothly introduce UI elements and its cool
         b.BackgroundTransparency = 1
 
         TweenService:Create(
@@ -499,23 +478,18 @@ function Dialogue:_makeChoice(options)
         conns[i] = b.MouseButton1Click:Connect(function()
 
             GlobalSoundPool:Play(1)
-
-            --// fires selected index into bindable so main thread can resume execution
-            bind:Fire(i)
+            bind:Fire(i) --// i is the choice the player made, so 1,2,3 etc
         end)
 
         table.insert(buttons, b)
     end
 
-    --// yields execution until player makes a selection
+    --// stops execution until player makes a selection
     local res = bind.Event:Wait()
 
-    --// cleanup phase ensures no memory leaks or dangling UI connections
+    --// disconnect things
     for _, c in ipairs(conns) do c:Disconnect() end
-
-    for _, b in ipairs(buttons) do
-
-        --// fade out ensures UI exits smoothly instead of popping off-screen
+    for _, b in ipairs(buttons) do --// fading out buttons
         TweenService:Create(
             b,
             CHOICE_TWEEN,
@@ -529,8 +503,8 @@ function Dialogue:_makeChoice(options)
 end
 
 
---// main dialogue execution pipeline
---// handles text rendering, typewriter audio, skipping logic, and optional branching choices
+--// main dialogue function
+--// handles text rendering, typewriter audio, skipping logic, choices, etc
 
 function Dialogue:Say(text, choices)
 
