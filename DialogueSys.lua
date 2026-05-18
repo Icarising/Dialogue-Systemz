@@ -206,7 +206,7 @@ function Dialogue:_setupCamera()
     local charRoot = self.Character.PrimaryPart
     if not npcRoot or not charRoot then return end
 
-    --// switch to scriptable so Roblox default camera does not interfere
+    --// switch to scriptable so default camera does not interfere
     camera.CameraType = Enum.CameraType.Scriptable
 
     local alpha = 0
@@ -217,11 +217,11 @@ function Dialogue:_setupCamera()
         if self.Destroyed then connection:Disconnect() return end
         if not npcRoot.Parent or not charRoot.Parent then return end
 
-        --// alpha controls smooth interpolation speed toward target camera position
+        --// alpha controls the interpolation speed toward target camera position
         alpha = math.clamp(alpha + dt * 4, 0, 1)
 
-        --// flat direction calculates horizontal vector from player to NPC
-        --// Y axis is removed so camera does not tilt up/down when jumping or height differs
+        --// flat direction calculates horizontal direction from player to NPC
+        --// Y axis is removed so camera does not tilt up/down when jumping or player is above npc
         local flatDirection = Vector3.new(
             npcRoot.Position.X - charRoot.Position.X,
             0,
@@ -233,22 +233,22 @@ function Dialogue:_setupCamera()
         local offset = (-flatDirection * 6) + CAMERA_OFFSET
         local cameraPosition = charRoot.Position + offset
 
-        --// lookAt ensures camera always faces slightly above NPC torso/head area
+        --// make sure camera always faces slightly above NPC torso/head area
         local target = CFrame.lookAt(
             cameraPosition,
             npcRoot.Position + Vector3.new(0, 2, 0)
         )
 
-        --// lerp blends current camera toward target for smooth movement
+        --// lerp camera toward target for smooth movement
         camera.CFrame = camera.CFrame:Lerp(target, alpha)
     end)
 
-    --// store connection so it can be cleaned up when dialogue ends
+    --// store connection so it can be cleaned up when dialogue end
     trackConnection(self.Connections, connection)
 end
 
 
---// reset camera back to default Roblox control system
+--// reset camera back to default 
 
 function Dialogue:_resetCamera()
 
@@ -330,14 +330,14 @@ end
 
 
 --// typewriter audio system
---// runs independently of text animation so we can sync if player wants to click to skip text earier
+--// runs independently of text animation so we can sync if player wants to click to skip text earier and stuff
 
 function Dialogue:_beginTypewrite(speed)
 
     self.TypeThread = task.spawn(function()
 
         while task.wait(0.04 / speed) do
-            if self.State ~= STATES.TYPING then break end --// if not typing just stsop
+            if self.State ~= STATES.TYPING then break end --// if not typing just stop
             GlobalSoundPool:Play(speed)
         end
     end)
