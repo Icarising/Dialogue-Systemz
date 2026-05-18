@@ -540,7 +540,7 @@ function Dialogue:Say(text, choices)
 
     local result
 
-    --// branching logic: either continue linear dialogue or enter choice state and see what choice the player made to branch dialogue off
+    --// continue dialogue as normal or enter choice state and see what choice the player made to branch dialogue off
     if choices then
         result = self:_makeChoice(choices)
     else
