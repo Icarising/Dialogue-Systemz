@@ -122,7 +122,7 @@ end
 
 local GlobalSoundPool = SoundPool.new(10)
 
---// utility
+--// connection functions
 
 local function trackConnection(tbl, connection)
     table.insert(tbl, connection) --// add connection to ocnnections list
