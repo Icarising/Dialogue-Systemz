@@ -677,8 +677,7 @@ local LookUps = {
         }) --// go through dialogue in order
 
         local choice =
-            dialogue:Say(
-                "Can you grab milk from the market for me?",
+            dialogue:Say("Can you grab milk from the market for me?", 
                 {
                     "Sure.",
                     "No."
@@ -686,14 +685,10 @@ local LookUps = {
             )
 
         if choice == 1 then
-
             dialogue:Say"Thanks. Come back when you're done."
             dialogue:_acceptQuest"MilkDelivery"     
-
         else
-
             dialogue:Say"Alright then. I'll ask someone else."
-
         end
 
         dialogue:Hide()
