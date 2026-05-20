@@ -1,22 +1,23 @@
 --// Discord: V | Roblox: Iamnoahbtw / Icarising
+--// no ai comments this time sorry(I got lazy)
 
 --[[
     NPC Dialogue System Overview
     
     Object-oriented dialogue system built around a single session dialouge class.
     One instance is created when a player interacts with an NPC and destroyed
-    when the conversation ends. Systems included:
-    
-  • Scriptable camera with over-the-shoulder framing and wall avoidance
-  • Raycasted NPC facing — NPC only tracks player if line of sight is clear
+    when the conversation ends. 
+    Includes:
+
+  • Lock on type camera when in dialogue
+  • NPC only tracks player if line of sight is clear
   • Typewriter text rendering via Defaultio's RichText module
   • Audio pooler to loop over sounds over and over
-  • PathfindingService NPC movement with waypoint timeout guards
-  • DepthOfFieldEffect for cinematic focus
-  • BindableEvent-based choice system that yields until player selects
-  • CollectionService tagging so other systems know when a player is busy
+  • PathfindingService NPC movement with waypoints
+  • BindableEvent-based input system that stops dialogue till the function is fired, useful for choices and waiting till input is handled
+  • CollectionService tagging so other systems know when a player is busy with dialogue
   • TweenService to smoothly rotate NPC to default position when done with dialogue
-  • State machine (IDLE → TYPING → WAITING → CHOOSING → CLOSED)
+  • State handling, idle, typing, choosing, etc
      
     if there isn't enough API usage/comments as per stated beforehand please give me examples of what I could add/what would be accepted for my future referenc ty
 --]]
@@ -39,20 +40,20 @@ local Lighting = game:GetService("Lighting")
 
 local RichText = require(script:WaitForChild("RichText"))
 
---// Remotes
+--// Remotes, dont do anything because its a demo place
 
 local QuestRemote = ReplicatedStorage:WaitForChild("Events"):WaitForChild("RemoteEvents"):WaitForChild("Quest")
 
 --// Constants
 
-local CameraOffset = Vector3.new(5, 4, 0) --// over-the-shoulder offset applied behind the player relative to NPC direction
-local MaxDistance = 25 --// studs; dialogue auto-closes beyond this
+local CameraOffset = Vector3.new(5, 4, 0) --// camera offset 
+local MaxDistance = 25 --// if player is 25 studs from the npc, the dialogue box will close
 
 local OpenTween = TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 local ChoiceTween = TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
 
-local BasicStyle = "<AnimateStyle=Fade>"
-local BasicFrequency = "<AnimateStepFrequency=2>"
+local BasicStyle = "<AnimateStyle=Fade>" --// Text will fade in using the rich text module
+local BasicFrequency = "<AnimateStepFrequency=2>" --// text will animate every 2 text character at once
 
 --// State machine, what the dialogue system is currently doing, typing, waiting, etc
 
@@ -64,14 +65,12 @@ local States = {
     Closed = "CLOSED",
 }
 
---// Shared raycast params table 
+--// raycast params table used for both raycasting functions
 
 local Params = RaycastParams.new()
 Params.FilterType = Enum.RaycastFilterType.Exclude
 
---// SoundPool
---// Pre-allocates N sounds and cycles through them 
---// Avoids creating/destroying a Sound every character tick during typewriter 
+--// SoundPool, makes an X amount of sounds and loops through them, avoids making a new sound and adding it every time because we loop through the same few sounds over and over again saving some space
 
 local SoundPool = {}
 SoundPool.__index = SoundPool
@@ -96,25 +95,23 @@ end
 function SoundPool:Play(speed)
     local s = self.Sounds[self.Index]
     s.PlaybackSpeed = speed or 1
-    s.TimePosition = 0 --// always restart so overlapping calls don't skip the attack
+    s.TimePosition = 0 --// start at 0 incase an overlap occurs
     s:Play()
 
-    self.Index = (self.Index % #self.Sounds) + 1
+    self.Index = (self.Index % #self.Sounds) + 1 --// use modulus to calculate next sound using the remainder
 end
 
 local GlobalSoundPool = SoundPool.new(10)
 
---// Connection helpers
---// Every connection registers through these so Destroy() tears them all down
---// in one pass without hunting for scattered local variables.
+--// Connection handles
 
 local function trackConnection(tbl, conn)
-    table.insert(tbl, conn)
+    table.insert(tbl, conn) --// insert into the table of connections
 end
 
 local function disconnectAll(tbl)
-    for _, c in ipairs(tbl) do c:Disconnect() end
-    table.clear(tbl)
+    for _, c in ipairs(tbl) do c:Disconnect() end --// disconnect all connections in table
+    table.clear(tbl) --// clear the table to set connections to nil
 end
 
 --// Definines dalogue class and its functions
@@ -141,7 +138,7 @@ type DialogueClass = {
     Destroy: (self: DialogueClass) -> (),
 }
 
---// Constructor
+--// Constructor ffunction
 
 function Dialogue.new(player: Player, guiParent: PlayerGui, npc: Model): DialogueClass
     local self = setmetatable({}, Dialogue)
@@ -150,7 +147,8 @@ function Dialogue.new(player: Player, guiParent: PlayerGui, npc: Model): Dialogu
     self.Character = player.Character
     self.NPC = npc
 
-    --// Record NPC's starting CFrame so _resetNPC can tween it back exactly after the scene
+    --// Record npc starting cframe so when dialogue ends they reset to that position.
+    
     local root = npc:WaitForChild("HumanoidRootPart")
     self.rpos = root.CFrame
 
@@ -166,7 +164,7 @@ function Dialogue.new(player: Player, guiParent: PlayerGui, npc: Model): Dialogu
     self.NameLabel = self.UI.NameBox.NameLabel
     self.ChoicesHolder = self.UI.Choices
 
-    --// CollectionService tag lets other see if character in dialogue state 
+    --// CollectionService tag lets other scripts see if character is inn dialogue state 
     CollectionService:AddTag(self.Character, "InDialogue")
 
     self:Show()
@@ -178,9 +176,9 @@ function Dialogue.new(player: Player, guiParent: PlayerGui, npc: Model): Dialogu
 end
 
 
---// Depth of Field
---// Tweens FarIntensity from 0 → 0.45 on open so background geometry gradually
---// blurs, keeping visual focus on the characters during the scene.
+--// Depth of Field effect to focus in on the character and npc and blur out everything else
+--// slowly fades in with tweenservice
+
 function Dialogue:_createDepthEffect()
     local dof = Instance.new("DepthOfFieldEffect")
     dof.FarIntensity = 0
@@ -189,31 +187,25 @@ function Dialogue:_createDepthEffect()
     dof.FocusDistance = 20
     dof.Parent = Lighting
 
-    TweenService:Create(dof, TweenInfo.new(0.35), { FarIntensity = 0.45 }):Play()
+    TweenService:Create(dof, TweenInfo.new(3.5), { FarIntensity = 0.45 }):Play()
     self.DepthEffect = dof
 end
 
---// Raycast helpers
---// Both share the same sParams table instance and update FilterDescendantsInstances per-call so we always exclude the two characters involved.
-
---// Returns true if nothing blocking the pate
+--// Raycast functions
 
 local function hasLineOfSight(origin: Vector3, target: Vector3, exclude: {Instance}): boolean
     Params.FilterDescendantsInstances = exclude
     local result = workspace:Raycast(origin, target - origin, Params)
-    return result == nil
+    return result == nil --// if nothing is in path between the origin and direction then true
 end
 
---// Returns the RaycastResult for the first wall between origin and target, or nil if clear.
---// Used by the camera to find geometry it needs to push away from.
 local function findWallObstruction(origin: Vector3, target: Vector3, exclude: {Instance})
     Params.FilterDescendantsInstances = exclude
-    return workspace:Raycast(origin, target - origin, Params)
+    return workspace:Raycast(origin, target - origin, Params) --// returns the ray
 end
 
 
---// Overrides the default camera for cinematic over-the-shoulder framing.
---// Each RenderStepped frame:
+--// Lock on camera system, each frame:
 --// finds ideal position behind/above the player facing the NPC.
 --// Raycasts player ideal position if a wall is hit, the camera is  pushed to just in front of the hit point so it never clips
 --// Lerps toward the final position using an alpha that increases over time for a smooth tween when dialogue opens.
@@ -238,7 +230,7 @@ function Dialogue:_setupCamera()
 
         alpha = math.clamp(alpha + dt * 4, 0, 1)
 
-        --// ill not take y value into account so as to not tilkt/pdown
+        --// ill not take y value into account so as to not tilkt/updown
         local flatDir = Vector3.new(
             npcRoot.Position.X - charRoot.Position.X,
             0,
@@ -247,7 +239,7 @@ function Dialogue:_setupCamera()
 
         local idealPos = charRoot.Position + (-flatDir * 6) + CameraOffset
 
-        --// If wall sits between the player and the ideal camera spot, slide the camera forward to just in front of the wall (.5 studs)
+        --// If wall sits between the player and the ideal camera spot adjust move the camerain front of the wall slightly
         local wallHit = findWallObstruction(charRoot.Position, idealPos, exclude)
         local finalPos = idealPos
 
@@ -272,9 +264,6 @@ function Dialogue:_resetCamera()
 end
 
 --// NPC Facing
---// Rotates the NPC toward the player each frame, but only when:
---// The NPC isn't walking (avoids fighting the pathfinding system)
---// There's clear line of sight (NPC won't stare through walls)
 
 function Dialogue:_trackPlayer()
     if not self.Character or not self.NPC then return end
@@ -283,12 +272,12 @@ function Dialogue:_trackPlayer()
     local n = self.NPC.PrimaryPart
     if not c or not n then return end
 
-    if self.Walking then return end
+    if self.Walking then return end --// if the npc is walking do not track the palyer as that would interfere with the pathfinding
 
     local eyeOffset = Vector3.new(0, 1.5, 0)
     local los = hasLineOfSight(n.Position + eyeOffset, c.Position + eyeOffset, { self.NPC, self.Character })
 
-    if los then
+    if los then --// if the player character isnt behind a wall or something then face the character
         local dir = (c.Position - n.Position).Unit
         n.CFrame = CFrame.lookAt(n.Position, n.Position + Vector3.new(dir.X, 0, dir.Z))
     end
@@ -309,7 +298,7 @@ function Dialogue:_startDistanceCheck()
 
         self:_trackPlayer()
 
-        if (c.Position - n.Position).Magnitude > MaxDistance then
+        if (c.Position - n.Position).Magnitude > MaxDistance then --// wow hes beyond the max distance close the dialogue
             self:Hide()
         end
     end)
@@ -343,10 +332,6 @@ function Dialogue:_stopTypewrite()
     end
 end
 
---// Input Wait
---// BindableEvent as a one-shot signal so the thread truly yields with zero
---// busy-wait overhead instead of polling a boolean flag.
-
 function Dialogue:_waitForInput()
     local bind = Instance.new("BindableEvent")
     local conn
@@ -360,27 +345,25 @@ function Dialogue:_waitForInput()
             or input.UserInputType == Enum.UserInputType.MouseButton1
             or input.UserInputType == Enum.UserInputType.Touch
 
-        if ok then
+        if ok then --// if the input is one of the above then disconnect the input function and fire the event
             conn:Disconnect()
             bind:Fire()
         end
     end)
 
-    bind.Event:Wait()
+    bind.Event:Wait() --// waits for event to fire before continuing
     bind:Destroy()
 end
 
 
 --// NPC Pathfinding
---// PathfindingService so the NPC navigates around obstacles.
---// Each waypoint has a 2s timeout guard so a stall can't freeze it forever.
 
 function Dialogue:moveNPCTo(pos)
     local hum = self.NPC:FindFirstChildOfClass("Humanoid")
     local root = self.NPC:FindFirstChild("HumanoidRootPart")
     if not hum or not root then return end
 
-    if self.Walking then self.CancelMove = true end
+    if self.Walking then self.CancelMove = true end --// if they are already moving beforehand stop the last move to function called
 
     self.Walking = true
     self.CancelMove = false
@@ -388,45 +371,45 @@ function Dialogue:moveNPCTo(pos)
     local path = PathfindingService:CreatePath()
     path:ComputeAsync(root.Position, pos)
 
-    if path.Status ~= Enum.PathStatus.Success then
+    if path.Status ~= Enum.PathStatus.Success then --// if the plarth doesnt work just move to the position and wait
         hum:MoveTo(pos)
         hum.MoveToFinished:Wait(2)
         self.Walking = false
         return
     end
 
-    for _, wp in ipairs(path:GetWaypoints()) do
-        if self.CancelMove then
+    for _, wp in ipairs(path:GetWaypoints()) do --// go through each waypoint the path made
+        if self.CancelMove then  --// if true stop this functon
             self.Walking = false
             return
         end
 
         if wp.Action == Enum.PathWaypointAction.Jump then
-            hum.Jump = true
+            hum.Jump = true --// they jump if they need jump
         end
 
         hum:MoveTo(wp.Position)
 
         local finished = false
         local conn
-        conn = hum.MoveToFinished:Connect(function()
+        conn = hum.MoveToFinished:Connect(function() 
             finished = true
             conn:Disconnect()
         end)
 
         local timev = os.clock()
-        while not finished do
+        while not finished do --// if the timer is above 2 seconds break this and move on to the next waypoint
             if os.clock() - timev > 2 then conn:Disconnect() break end
             task.wait()
         end
     end
 
-    self.Walking = false
+    self.Walking = false --// they are no longer walking
 end
 
 
 --// Choice System
---// Builds buttons from the options table, fades them in, then statlls on a BindableEvent until the player clicks one
+--// add buttons from the options table, wait for player input to see what they picked and continue
 
 function Dialogue:_makeChoice(options)
     self.State = States.Choosing
@@ -436,23 +419,24 @@ function Dialogue:_makeChoice(options)
     local bind = Instance.new("BindableEvent")
 
     for i, v in ipairs(options) do
-        local b = script.ChoiceBox:Clone()
-        b.Parent = self.ChoicesHolder
+        local b = script.ChoiceBox:Clone() 
+        b.Parent = self.ChoicesHolder --// parent choice to frame
         b.NameLabel.Text = v
         b.BackgroundTransparency = 1
 
         TweenService:Create(b, ChoiceTween, { BackgroundTransparency = 0.1 }):Play()
 
-        conns[i] = b.MouseButton1Click:Connect(function()
+        conns[i] = b.MouseButton1Click:Connect(function() --// whatever i is, is the choice value, so 1,2,3,4
             GlobalSoundPool:Play(1)
-            bind:Fire(i)
+            bind:Fire(i) --// player clicked choice i
         end)
 
         table.insert(buttons, b)
     end
 
-    local res = bind.Event:Wait()
+    local res = bind.Event:Wait() --// returns the choice player picked
 
+    --// disconnections all buttons functions, removes buttons from existance
     for _, c in ipairs(conns) do c:Disconnect() end
     for _, b in ipairs(buttons) do
         TweenService:Create(b, ChoiceTween, { BackgroundTransparency = 1 }):Play()
@@ -463,11 +447,11 @@ function Dialogue:_makeChoice(options)
     return res
 end
 
-function Dialogue:Show()
+function Dialogue:Show() --// tween dialogue up into view
     TweenService:Create(self.UI, TweenInfo.new(.5,Enum.EasingStyle.Back), { Position = UDim2.fromScale(0.082, 0.415) }  ):Play()
 end
 
---// Say, makes  a line through RichText, runs typewriter SFX in a side thread,
+--// Say
 --// lets the player skip the reveal early, then branches to choices or waits
 --// for a plain advance input before returning control to the caller.
 
@@ -476,60 +460,62 @@ function Dialogue:Say(text, choices)
 
     self.State = States.Typing
     self.NameLabel.Text = self.CurrentSpeaker
-    self:_beginTypewrite(1)
+    self:_beginTypewrite(1) --// start sounds
 
     local obj = RichText:New(self.DialogueFrame, BasicStyle .. BasicFrequency .. text)
     local done = false
 
-    --// Side thread listens for skip input independently so the animation isn't blocked
-    task.spawn(function()
+    
+    task.spawn(function() --// wait for the next input, if the  text animation isnt done yet skip it.
         self:_waitForInput()
         if not done then obj:Show() end
     end)
 
     obj:Animate(true)
     done = true
-    self:_stopTypewrite()
+    self:_stopTypewrite() --// remove sounds when animating is done
 
     local result
 
-    if choices then
+    if choices then --// if there is a choice table let the player choose one and return the result
         result = self:_makeChoice(choices)
     else
         self.State = States.Waiting
-        self:_waitForInput()
+        self:_waitForInput() --// if there is no choice then simply wait for input again to progress
     end
 
-    obj:Hide()
+    obj:Hide() --// hide the current text when done with
     self.State = States.Idle
 
     return result
 end
 
---// Runs multiple lines in sequence without the caller repeating Say() calls
+
 function Dialogue:Sequence(lines)
-    for _, v in ipairs(lines) do
+    for _, v in ipairs(lines) do --// Runs multiple lines in sequence without having to repeatedly call :Say over and over
         self:Say(v)
     end
 end
 
-function Dialogue:_acceptQuest(id)
+function Dialogue:_acceptQuest(id) --// doesnt do anything because mock place
     QuestRemote:FireServer({ QuestId = id })
 end
 
---// Tweens the NPC back to its pre-dialogue CFrame so it doesn't stay wherever pathfinding left it
+
 function Dialogue:_resetNPC()
+    --// Tweens NPC back to original position so if it went off somewhere with pathfinding it goes back and to make it face the drection it was originally facing
     local root = self.NPC and self.NPC:FindFirstChild("HumanoidRootPart")
     if not root then return end
 
     TweenService:Create(root,TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),{CFrame = self.rpos}):Play()
 end
 
-function Dialogue:Destroy()
+function Dialogue:Destroy() --// remove everything from the function
     if self.Destroyed then return end
 
     self.Destroyed = true
     self.State = States.Closed
+--// stop camera, stop typewrting, make the npc go back, remove all existing connections, remove the dialogue tag from character,etc
 
     self:_stopTypewrite()
     self:_resetCamera()
@@ -541,7 +527,7 @@ function Dialogue:Destroy()
     end
 
     if self.DepthEffect then
-        local t = TweenService:Create(self.DepthEffect, TweenInfo.new(0.25), { FarIntensity = 0 })
+        local t = TweenService:Create(self.DepthEffect, TweenInfo.new(2.25), { FarIntensity = 0 })
         t:Play()
         t.Completed:Once(function()
             if self.DepthEffect then self.DepthEffect:Destroy() end
@@ -556,7 +542,7 @@ end
 function Dialogue:Hide()
     if self.Destroyed then return end
 
-    local t = TweenService:Create(self.UI, OpenTween, { Position = UDim2.fromScale(0.082, 1.2) })
+    local t = TweenService:Create(self.UI, OpenTween, { Position = UDim2.fromScale(0.082, 1.2) }) --// go back down out of view
     t:Play()
     t.Completed:Once(function()
         self:Destroy()
