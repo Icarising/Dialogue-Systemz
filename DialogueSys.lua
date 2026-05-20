@@ -18,7 +18,7 @@
   • TweenService to smoothly rotate NPC to default position when done with dialogue
   • State machine (IDLE → TYPING → WAITING → CHOOSING → CLOSED)
      
-    if there isn't enough API usage/comments as per stated beforehand please give me examples of what I could add/what would be accepted for my future  reference ty
+    if there isn't enough API usage/comments as per stated beforehand please give me examples of what I could add/what would be accepted for my future referenc ty
 --]]
 
 local Dialogue = {}
@@ -64,7 +64,7 @@ local States = {
     Closed = "CLOSED",
 }
 
---// Shared global raycast params table 
+--// Shared raycast params table 
 
 local Params = RaycastParams.new()
 Params.FilterType = Enum.RaycastFilterType.Exclude
