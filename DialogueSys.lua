@@ -104,11 +104,9 @@ end
 
 local GlobalSoundPool = SoundPool.new(10)
 
--- ─────────────────────────────────────────────────────────────────────────────
 --// Connection helpers
 --// Every connection registers through these so Destroy() tears them all down
 --// in one pass without hunting for scattered local variables.
--- ─────────────────────────────────────────────────────────────────────────────
 
 local function trackConnection(tbl, conn)
     table.insert(tbl, conn)
@@ -240,7 +238,7 @@ function Dialogue:_setupCamera()
 
         alpha = math.clamp(alpha + dt * 4, 0, 1)
 
-        --// Strip Y so the camera stays level regardless of elevation difference
+        --// ill not take y value into account so as to not tilkt/pdown
         local flatDir = Vector3.new(
             npcRoot.Position.X - charRoot.Position.X,
             0,
@@ -249,8 +247,7 @@ function Dialogue:_setupCamera()
 
         local idealPos = charRoot.Position + (-flatDir * 6) + CameraOffset
 
-        --// If geometry sits between the player and the ideal camera spot, slide
-        --// the camera forward to just in front of the wall (.5 studs)
+        --// If wall sits between the player and the ideal camera spot, slide the camera forward to just in front of the wall (.5 studs)
         local wallHit = findWallObstruction(charRoot.Position, idealPos, exclude)
         local finalPos = idealPos
 
@@ -298,8 +295,7 @@ function Dialogue:_trackPlayer()
 end
 
 
---// Distance Monitor
---// using runservice to check distance every physics step, if too far, close dialogue
+--// Distance Monitorusing runservice to check distance every physics step, if too far, close dialogue
 
 function Dialogue:_startDistanceCheck()
     local conn
