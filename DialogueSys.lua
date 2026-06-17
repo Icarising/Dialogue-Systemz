@@ -3,17 +3,16 @@
 --[[
     NPC Dialogue System Overview
     
-    Object-oriented dialogue system built around a dialogue class.
-    One instance is created when a player interacts with an NPC and destroyed
-    when the conversation ends. 
+    Object-oriented dialogue system built around a class called dialogue.
+    One instance is created when a player interacts with an NPC and destroyed when the conversation ends. 
     Includes:
 
   • Lock on type camera when in dialogue
   • NPC only tracks player if line of sight is clear
   • Typewriter text rendering via Defaultio's RichText module
-  • Audio pooler to loop over sounds over and over
-  • PathfindingService NPC movement with waypoints
-  • BindableEvent-based input system that stops dialogue till the function is fired, useful for choices and waiting till input is handled
+  • Audio pooler to loop over sounds over and over instead of constantly creating new ones
+  • PathfindingService with NPC movement with waypoints to let npcs move around during dialogue, resets back when finished.
+  • BindableEvent based input system that stops dialogue till the function is fired, handling all input
   • CollectionService tagging so other systems know when a player is busy with dialogue
   • TweenService to smoothly rotate NPC to default position when done with dialogue
   • State handling, idle, typing, choosing, etc
@@ -69,12 +68,16 @@ local States = {
 local Params = RaycastParams.new()
 Params.FilterType = Enum.RaycastFilterType.Exclude
 
---// SoundPool, makes an X amount of sounds and loops through them, avoids making a new sound and adding it every time because we loop through the same few sounds over and over again saving some space
+--// SoundPool, makes an X amount of sounds and loops through them, avoids making a new sound and adding it every time because we loop through the same few sounds over and over again saving memory
 
 local SoundPool = {}
 SoundPool.__index = SoundPool
 
 function SoundPool.new(size)
+    --// creates a soundpool metatable
+    --// adds "size" amount of sounds into the table
+    --// index is the tracking variable for whatever sound its on in the list
+    
     local self = setmetatable({}, SoundPool)
     self.Index = 1
     self.Sounds = {}
@@ -83,7 +86,7 @@ function SoundPool.new(size)
         local s = Instance.new("Sound")
         s.SoundId = "rbxassetid://5416573471"
         s.Volume = 0.5
-        s.PlaybackSpeed = math.random(95, 115) / 100 --// slight random pitch spread so clicks feel organic
+        s.PlaybackSpeed = math.random(95, 115) / 100 --// randomize speed for talking variation so its not constant
         s.Parent = workspace
         table.insert(self.Sounds, s)
     end
