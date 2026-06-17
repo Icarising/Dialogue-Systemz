@@ -1,10 +1,9 @@
 --// Discord: V | Roblox: Iamnoahbtw / Icarising
---// no ai comments this time sorry(I got lazy)
 
 --[[
     NPC Dialogue System Overview
     
-    Object-oriented dialogue system built around a single session dialouge class.
+    Object-oriented dialogue system built around a dialogue class.
     One instance is created when a player interacts with an NPC and destroyed
     when the conversation ends. 
     Includes:
